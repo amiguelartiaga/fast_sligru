@@ -2,3 +2,5 @@ git clone https://github.com/amiguelartiaga/fast_sligru.git
 cd fast_sligru
 git remote add upstream https://github.com/Adel-Moumen/fast_sligru.git
 git fetch upstream
+
+pip install -e . --no-build-isolation
