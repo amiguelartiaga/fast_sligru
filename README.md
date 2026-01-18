@@ -70,7 +70,15 @@ To build the package:
 git clone https://github.com/Adel-Moumen/fast_sligru.git
 cd fast_sligru/
 pip install -r requirements.txt
-pip install -e .
+
+# Recommended when you already have torch installed in the current environment.
+# `--no-build-isolation` prevents pip from creating a temporary build env and
+# downloading another copy of torch just to compile the extension.
+pip install -e . --no-build-isolation
+
+# If you want to be extra safe and ensure pip doesn't modify any dependencies
+# in your environment (including torch), add `--no-deps`:
+# pip install -e . --no-build-isolation --no-deps
 ```
 
 ## Citing this work

@@ -88,6 +88,10 @@ class SLiGRUCell(Function):
 
         save_rstd = torch.stack(save_rstd, dim=1)
 
+        # `save_rstd` is an auxiliary statistic used for monitoring/regularization.
+        # This custom autograd Function does not propagate gradients for it.
+        ctx.mark_non_differentiable(save_rstd)
+
         return ht, save_rstd
 
     @staticmethod
