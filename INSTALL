@@ -3,4 +3,4 @@ cd fast_sligru
 git remote add upstream https://github.com/Adel-Moumen/fast_sligru.git
 git fetch upstream
 
-pip install -e . --no-build-isolation
+python -m pip install -e . --no-build-isolation
