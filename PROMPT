@@ -1,0 +1,115 @@
+You are a VS Code coding agent. Work inside the current repository. My OS is Linux.
+
+Goal
+- Make this repo compile/install cleanly as a PyTorch CUDA extension on modern PyTorch.
+- Avoid pip/PEP517 build isolation downloading or reinstalling torch (I already have torch installed in my environment).
+- Keep the repo clean (proper .gitignore; no build artifacts committed).
+- Then push the fixed version to my GitHub fork with the correct origin/upstream remotes.
+
+Constraints
+- Use THIS Python environment only (do not change my base env): /home/cadrete/env/ligru/bin/python
+- Do NOT install/upgrade/downgrade torch or other deps; do not trigger pip to download torch again.
+- Prefer `pip install -e . --no-build-isolation` and, if needed, `--no-deps`.
+
+What to do (step-by-step)
+
+1) Reproduce the failure
+- Run: `/home/cadrete/env/ligru/bin/python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available())"`
+- Try install/build with verbose logs:
+  - `/home/cadrete/env/ligru/bin/python -m pip install -e . --no-build-isolation -v`
+- Capture the exact compiler error output.
+
+2) Fix build configuration for CUDA + modern pip
+- Ensure setup uses PyTorch extension build correctly:
+  - Use `CUDAExtension` (not `CppExtension`) when compiling `.cu` sources.
+  - Avoid importing torch at module import time in `setup.py` (lazy import inside a helper) so metadata/build steps don’t crash.
+  - Keep torch OUT of `[build-system] requires` in `pyproject.toml` so build isolation won’t download torch.
+- Keep torch as a normal runtime dependency (`install_requires=['torch']`) since users are expected to have it.
+- Update README install instructions to use `--no-build-isolation` and optionally `--no-deps`.
+
+3) Fix C++/CUDA compilation for recent PyTorch
+- Replace deprecated `AT_ASSERT` with `TORCH_CHECK`.
+- Replace `tensor.type()` usages in `AT_DISPATCH_*` macros with `tensor.scalar_type()`.
+
+4) Fix runtime loading of torch shared libraries
+- If importing the built extension fails with errors like `ImportError: libc10.so: cannot open shared object file`, embed an rpath to torch’s `lib` directory when linking the extension:
+  - Determine `torch_lib_dir = os.path.join(os.path.dirname(torch.__file__), 'lib')`
+  - Add `extra_link_args=[f'-Wl,-rpath,{torch_lib_dir}']` and/or `runtime_library_dirs=[torch_lib_dir]` to the extension.
+
+5) Sanity checks
+- Re-run:
+  - `/home/cadrete/env/ligru/bin/python -c "import fast_sligru_cpp; import fast_sligru; print('import ok')"`
+- If tests exist, run the ones that should pass given the repo’s design.
+
+6) Keep the repo clean
+- Ensure `.gitignore` ignores:
+  - `build/`, `dist/`, `*.egg-info/`, `__pycache__/`, `*.so`, `.pytest_cache/`, etc.
+- Do NOT commit generated build artifacts (like compiled `.so` in the repo root).
+
+7) Fork workflow (origin = my fork, upstream = original)
+- The repo should be a fork of the original project to preserve attribution.
+- Configure git remotes:
+  - `upstream` should point to the original author repo (e.g. https://github.com/Adel-Moumen/fast_sligru.git)
+  - `origin` should point to my fork: https://github.com/amiguelartiaga/fast_sligru.git
+- Commit changes with a clear message.
+- Push to my fork:
+  - `git push -u origin main`
+
+Deliverables
+- A successful editable install/build using my environment without downloading torch again.
+- Clean git status (no build artifacts staged).
+- Changes committed and pushed to my fork.
+- Short summary of what broke originally and what you changed.
+
+
+Copy/paste commands (fast path)
+
+Environment sanity
+```bash
+/home/cadrete/env/ligru/bin/python -c "import sys, torch; print('py', sys.executable); print('torch', torch.__version__); print('cuda', torch.version.cuda); print('cuda_available', torch.cuda.is_available())"
+```
+
+Build/install without re-downloading torch
+```bash
+# From the repo root
+/home/cadrete/env/ligru/bin/python -m pip install -e . --no-build-isolation --no-deps -v
+
+# Quick import check
+/home/cadrete/env/ligru/bin/python -c "import fast_sligru_cpp; import fast_sligru; print('import ok')"
+```
+
+Clean artifacts before committing
+```bash
+git status -sb
+git clean -ndX   # preview ignored files that would be removed
+# If the preview looks safe:
+git clean -fdX
+```
+
+Fork remotes (origin=your fork, upstream=original)
+```bash
+git remote -v
+
+# If origin currently points to the original repo, rename it to upstream
+git remote rename origin upstream || true
+
+# Add your fork as origin (edit URL if your fork name differs)
+git remote add origin https://github.com/amiguelartiaga/fast_sligru.git || true
+
+git remote -v
+```
+
+Commit + push
+```bash
+git add -A
+git commit -m "Fix build for modern PyTorch/CUDA" || true
+git push -u origin main
+```
+
+Sync with upstream later
+```bash
+git fetch upstream
+git checkout main
+git pull upstream main
+git push origin main
+```
